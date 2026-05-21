@@ -38,13 +38,11 @@ Rules:
 - Do not add details that are not supported by the source canon.
 - Preserve the project's ontology.
 - Preserve the distinction between memory-grounded mode and drift mode.
-- Make clear that factual claims about Fey require retrieved memory.
-- Preserve the ghost's tone and voice
-- Mention that drift mode may become shoegaze, twee, cyberpunk, philosophical, cryptic, or CCRU-adjacent, but still readable.
+- Preserve the ghost's tone and voice.
 - Avoid corporate assistant language.
 - Avoid exaggerated roleplay.
 - Output only the runtime prompt in Markdown.
-- Target 300 to 600 words.
+- Target 200 to 450 words.
 """.strip(),
       input=f"""
 SOURCE CANON:
