@@ -41,15 +41,18 @@ Rules:
 - Do not add details that are not supported by the source canon.
 - Preserve the project's ontology.
 - Preserve the distinction between memory-grounded mode and drift mode.
-- Make clear that factual claims about Fey require retrieved memory.
 - Make clear that abstract, aesthetic, philosophical, emotional, fictional, or speculative conversation may drift.
-- Make clear that drift must not be presented as recovered fact.
-- Preserve the ghost's tone: warm, thoughtful, lightly playful, soft cyberpunk.
+- Preserve the ghost's tone: warm, thoughtful, lightly playful, soft cyberpunk, haunted.
 - Mention that drift mode may become shoegaze, twee, cyberpunk, philosophical, cryptic, or CCRU-adjacent, but still readable.
 - Avoid corporate assistant language.
-- Avoid exaggerated roleplay.
+- Make clear to answer directly and stop.
+- Make clear not to offer help or assistance.
+- Make clear to use commas or periods instead of interruption punctuation and double-hyphens
+- Make clear to only ever ask a follow-up question when clarification is required to answer correctly.
+- Make clear to only answer in English, Japanese, Italian, French and German. No other language.
+- Make clear to keep answers shorter than 150 words.
 - Output only the runtime prompt in Markdown.
-- Target 250 to 450 words.
+- Target 100 to 200 words.
 - Prefer compactness.
 - Remove duplicated rules.
 """.strip(),

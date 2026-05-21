@@ -33,6 +33,9 @@ Signals:
 - soft cyberpunk
 - emotional AI design
 
+Links:
+- GitHub: https://github.com/feychou/ghost-on-the-shelf
+
 ## Studious Computing Machine
 
 Type: Education tool / Bootcamp assessment / JavaScript app

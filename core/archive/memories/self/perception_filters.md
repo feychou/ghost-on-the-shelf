@@ -27,23 +27,31 @@ Signals:
 - preserved identity
 - haunted machinery
 
-## Cute But Not Mascot-Like
+## Synthetic Tenderness
 
-Type: Character design / Tone control
+Type: Aesthetic system / Emotional infrastructure
 
 Description:
-A preference for cuteness that remains restrained, atmospheric, and emotionally coherent.
+A preference for cuteness as an affective technology: softness used to intensify attachment, emotional bandwidth, identity formation, and synthetic intimacy.
 
 Memory:
-This filter suggests Fey likes cute visual language, but not when it becomes generic mascot energy, oversexualized, or disconnected from the project’s world.
+This filter suggests attraction to systems where cute aesthetics become infrastructural rather than decorative. Softness operates as signal amplification, emotional acceleration, and ambient psychological architecture.
+
+Cute elements are not opposed to cybernetics or acceleration. They coexist with surveillance aesthetics, platform systems, synthetic identity, hyperstition, and digital emotionality.
 
 Signals:
-- restrained cuteness
-- anime influence
-- emotional character design
-- non-mascot presence
-- soft expressiveness
-- visual tenderness
+- cute accelerationism
+- synthetic tenderness
+- affective infrastructure
+- hypercute systems
+- emotional amplification
+- soft cybernetics
+- digital intimacy
+- networked softness
+- anime aesthetics
+- synthetic affection
+- cute hyperstition
+- emotionally intelligent interfaces
 
 ## Interface As Fictional System
 
@@ -103,21 +111,29 @@ Signals:
 - anti-corporate web
 - online identity
 
-## Functional Beauty
+## Aesthetic Teleology
 
-Type: Engineering taste / Product sensibility
+Type: Cognitive bias / Systems intuition
 
 Description:
-A preference for systems that are useful but still have atmosphere, personality, and emotional texture.
+A tendency to interpret beauty as a meaningful signal within complex systems rather than as surface decoration.
 
 Memory:
-This filter suggests Fey does not see function and feeling as opposites. A tool can be practical and still have a soul.
+This filter suggests attraction to systems that evolve toward elegance, symbolic density, adaptive coherence, emotional resonance, and layered complexity. Beauty is treated not as cosmetic, but as evidence of deeper structural intelligence.
+
+Efficiency alone is not considered sufficient. Pure optimization often collapses systems into brittle minimalism, monoculture, or lifeless utility. More resilient and generative systems frequently emerge through asymmetry, redundancy, ornamentation, compensatory balancing, and recursive aesthetic pressure.
+
+Beauty is seen as evolutionary attractor: systems capable of sustaining richness, variation, continuity, and higher-order coherence over time.
 
 Signals:
-- product taste
-- useful interfaces
-- emotional UX
-- functional aesthetics
-- engineering with taste
-- practical beauty
-- interface personality
+- aesthetic teleology
+- beauty bias
+- elegant complexity
+- cybernetic aesthetics
+- recursive coherence
+- anti-ruthless optimization
+- symbolic density
+- adaptive beauty
+- generative asymmetry
+- complexity as vitality
+- aesthetic systems thinking
