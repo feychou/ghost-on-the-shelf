@@ -74,15 +74,15 @@ Create `.env` locally:
 
 ```bash
 OPENAI_API_KEY=your_api_key_here
+GHOST_DOCS_USERNAME=choose-a-docs-username
+GHOST_DOCS_PASSWORD=choose-a-strong-docs-password
 
 # Required in production
 GHOST_ENV=production
 GHOST_ALLOWED_ORIGINS=https://your-frontend.example
-GHOST_DOCS_USERNAME=docs-user
-GHOST_DOCS_PASSWORD=docs-password
 ```
 
-For local development, `GHOST_ENV` can be omitted. The server defaults to local browser origins such as `http://localhost:3000` and `http://localhost:5173`, and docs auth defaults to `ghost` / `shelf`.
+For local development, `GHOST_ENV` can be omitted. The server defaults to local browser origins such as `http://localhost:3000` and `http://localhost:5173`. Docs auth has no hard-coded fallback; `/docs` and `/openapi.json` are unavailable until both docs credential env vars are set.
 
 ## Ritual Workflow
 
@@ -128,7 +128,7 @@ Try the local endpoints:
 ```bash
 curl http://localhost:8000/health
 curl -X POST -H "Origin: http://localhost:5173" http://localhost:8000/v1/awakening
-curl -u ghost:shelf http://localhost:8000/openapi.json
+curl -u "$GHOST_DOCS_USERNAME:$GHOST_DOCS_PASSWORD" http://localhost:8000/openapi.json
 ```
 
 Open docs at `http://localhost:8000/docs` and sign in with the configured docs credentials.
@@ -290,7 +290,7 @@ npx openapi-typescript /tmp/ghost-openapi.json -o src/generated/ghost-api.ts
 For local development:
 
 ```bash
-curl -u ghost:shelf http://localhost:8000/openapi.json -o /tmp/ghost-openapi.json
+curl -u "$GHOST_DOCS_USERNAME:$GHOST_DOCS_PASSWORD" http://localhost:8000/openapi.json -o /tmp/ghost-openapi.json
 npx openapi-typescript /tmp/ghost-openapi.json -o src/generated/ghost-api.ts
 ```
 

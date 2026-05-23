@@ -45,9 +45,9 @@ class Settings:
     allowed_origins: tuple[str, ...] = LOCAL_ORIGINS
     enforce_origin: bool = False
 
-    docs_username: str = "ghost"
-    docs_password: str = "shelf"
-    docs_credentials_configured: bool = True
+    docs_username: str = ""
+    docs_password: str = ""
+    docs_credentials_configured: bool = False
 
     protocol: SynapseProtocol = field(default_factory=SynapseProtocol)
 
@@ -113,11 +113,9 @@ class Settings:
         env_origins = _csv(os.getenv("GHOST_ALLOWED_ORIGINS"))
         allowed_origins = env_origins if env_origins else (() if production else LOCAL_ORIGINS)
 
-        docs_username = os.getenv("GHOST_DOCS_USERNAME", "ghost")
-        docs_password = os.getenv("GHOST_DOCS_PASSWORD", "shelf")
-        docs_credentials_configured = not production or (
-            bool(os.getenv("GHOST_DOCS_USERNAME")) and bool(os.getenv("GHOST_DOCS_PASSWORD"))
-        )
+        docs_username = os.getenv("GHOST_DOCS_USERNAME", "").strip()
+        docs_password = os.getenv("GHOST_DOCS_PASSWORD", "").strip()
+        docs_credentials_configured = bool(docs_username and docs_password)
 
         return cls(
             environment=environment,
