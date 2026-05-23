@@ -35,10 +35,15 @@ ghost-on-the-shelf/
       retrieval.py                  # shared embedding and memory retrieval
   signal_chamber/
     server/
-      app.py                        # FastAPI app: signal_chamber.server.app:app
+      app.py                        # FastAPI app factory: signal_chamber.server.app:app
+      dependencies.py               # request/app-state helpers for route handlers
+      docs.py                       # protected docs and OpenAPI schema routes
       guards.py                     # in-memory rate and concurrency limits
+      middleware.py                 # CORS and production Origin checks
+      routes.py                     # health, awakening, and chat endpoints
       schemas.py                    # API request/response models
       settings.py                   # environment-backed settings
+      state.py                      # runtime artifact and app-state setup
   staging_chamber/
     journal.ipynb                   # private rehearsal and observation notebook
   rituals/
@@ -126,7 +131,7 @@ curl -X POST -H "Origin: http://localhost:5173" http://localhost:8000/v1/awakeni
 curl -u ghost:shelf http://localhost:8000/openapi.json
 ```
 
-Open docs at `http://localhost:8000/docs` or `http://localhost:8000/redoc` and sign in with the configured docs credentials.
+Open docs at `http://localhost:8000/docs` and sign in with the configured docs credentials.
 
 ## API Contract
 
@@ -253,7 +258,6 @@ This limits normal browser calls from other domains. It is not full authenticati
 Docs and schema routes are always protected with HTTP Basic auth:
 
 - `GET /docs`
-- `GET /redoc`
 - `GET /openapi.json`
 
 Configure production docs credentials:

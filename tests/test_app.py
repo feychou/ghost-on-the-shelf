@@ -125,7 +125,7 @@ def test_docs_and_schema_are_basic_auth_protected() -> None:
     api = client()
 
     assert api.get("/docs").status_code == 401
-    assert api.get("/redoc").status_code == 401
+    assert api.get("/redoc").status_code == 404
     assert api.get("/openapi.json").status_code == 401
 
     schema_response = api.get("/openapi.json", headers=basic_auth_header())
