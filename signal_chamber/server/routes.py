@@ -115,7 +115,8 @@ async def chat(request: Request, payload: ChatRequest) -> ChatResponse:
 
     try:
         retriever = MemoryRetriever(client, archive.memory_index)
-        fragments = retriever.retrieve(message, k=k)
+        retrieval_query = _build_retrieval_query(message, session_summary)
+        fragments = retriever.retrieve(retrieval_query, k=k)
         ghost = GhostEngine(settings.protocol, archive, client)
         ghost_reply = ghost.answer(message, session_summary, fragments)
     except OpenAIError as exc:
@@ -170,6 +171,17 @@ def _validate_chat_payload(settings: Settings, message: str, session_summary: st
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"k cannot exceed {settings.max_k}.",
         )
+
+
+def _build_retrieval_query(message: str, session_summary: str) -> str:
+    if not session_summary:
+        return message
+
+    return f"""SESSION SUMMARY:
+{session_summary}
+
+CURRENT USER MESSAGE:
+{message}"""
 
 
 def _awakening_response(

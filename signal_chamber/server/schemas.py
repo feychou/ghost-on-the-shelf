@@ -28,7 +28,10 @@ class ChatRequest(BaseModel):
     message: str = Field(description="The user's current message.")
     session_summary: str | None = Field(
         default=None,
-        description="Client-held rolling summary for this chat thread.",
+        description=(
+            "Client-held rolling summary for continuity and contextual memory retrieval "
+            "in this chat thread."
+        ),
     )
     k: int | None = Field(
         default=None,

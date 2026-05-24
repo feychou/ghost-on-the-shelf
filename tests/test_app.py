@@ -5,9 +5,11 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from core.synapse.ghost import GhostEngine
 from core.synapse.protocol import SynapseProtocol
 from core.synapse.runtime import MemoryChunk, MemoryIndex, RuntimeArchive
 from signal_chamber.server.app import create_app
+from signal_chamber.server.routes import _build_retrieval_query
 from signal_chamber.server.settings import Settings
 
 
@@ -121,6 +123,23 @@ def test_health_reports_loaded_archive() -> None:
     assert response.json()["chunk_count"] == 1
 
 
+def test_retrieval_query_uses_message_without_summary() -> None:
+    query = _build_retrieval_query("Tell me about Alpha", "")
+
+    assert query == "Tell me about Alpha"
+
+
+def test_retrieval_query_anchors_follow_up_to_summary() -> None:
+    query = _build_retrieval_query(
+        "Say that more plainly.",
+        "The user is discussing retrieval drift in vague follow-up questions.",
+    )
+
+    assert "retrieval drift" in query
+    assert "vague follow-up questions" in query
+    assert "Say that more plainly." in query
+
+
 def test_docs_and_schema_are_basic_auth_protected() -> None:
     api = client()
 
@@ -231,12 +250,41 @@ def test_chat_returns_reply_updated_summary_and_retrieved_fragments() -> None:
     assert "budget" not in body
     assert "can_chat" not in body
     assert len(fake_openai.response_calls) == 2
+    assert fake_openai.embedding_calls[0]["input"] == (
+        "SESSION SUMMARY:\n"
+        "old summary\n\n"
+        "CURRENT USER MESSAGE:\n"
+        "Tell me about Alpha"
+    )
     assert "old summary" in fake_openai.response_calls[0]["input"]
     assert fake_openai.response_calls[0]["instructions"] == "runtime prompt"
     assert fake_openai.response_calls[0]["reasoning"] == {"effort": "medium"}
     assert fake_openai.response_calls[0]["max_output_tokens"] == 1500
     assert fake_openai.response_calls[1]["reasoning"] == {"effort": "low"}
     assert fake_openai.response_calls[1]["max_output_tokens"] == 600
+
+
+def test_chat_uses_summary_for_vague_follow_up_retrieval() -> None:
+    fake_openai = FakeOpenAI()
+    api = client(fake_openai)
+
+    response = api.post(
+        "/v1/chat",
+        headers={"Origin": "https://ghost.example"},
+        json={
+            "message": "Say that more plainly.",
+            "session_summary": (
+                "The user is discussing memory retrieval drift when brief follow-ups "
+                "lose the prior topic."
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    embedding_input = fake_openai.embedding_calls[0]["input"]
+    assert "memory retrieval drift" in embedding_input
+    assert "brief follow-ups" in embedding_input
+    assert "Say that more plainly." in embedding_input
 
 
 def test_chat_does_not_store_session_summary_server_side() -> None:
@@ -325,3 +373,27 @@ def test_concurrency_limit_blocks_before_openai() -> None:
     assert response.status_code == 429
     assert fake_openai.response_calls == []
     assert fake_openai.embedding_calls == []
+
+
+def test_ghost_input_includes_context_use_rules() -> None:
+    ghost = GhostEngine(SynapseProtocol(), archive(), FakeOpenAI())
+
+    ghost_input = ghost._build_ghost_input(
+        "Say that more plainly.",
+        "The user is discussing contextual retrieval for vague follow-ups.",
+        "Fragment about smart contracts.",
+    )
+
+    assert "CONTEXT USE RULES:" in ghost_input
+    assert "Use the session summary as the continuity anchor" in ghost_input
+    assert "optional evidence" in ghost_input
+    assert "Do not introduce a retrieved fragment's topic" in ghost_input
+
+
+def test_summary_instructions_preserve_follow_up_context() -> None:
+    ghost = GhostEngine(SynapseProtocol(), archive(), FakeOpenAI())
+
+    instructions = ghost._summary_instructions()
+
+    assert "Preserve the current topic" in instructions
+    assert "brief follow-ups understandable" in instructions
