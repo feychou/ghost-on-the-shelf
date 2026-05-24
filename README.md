@@ -133,6 +133,45 @@ curl -u "$GHOST_DOCS_USERNAME:$GHOST_DOCS_PASSWORD" http://localhost:8000/openap
 
 Open docs at `http://localhost:8000/docs` and sign in with the configured docs credentials.
 
+## Docker Deployment
+
+The Docker image copies the locally generated `core/shelf/ghost_runtime.md` and `core/shelf/indexes/memory_index.json` into the image. Those files stay ignored in git, but the deployed server still starts with prepared runtime artifacts baked into the image.
+
+Generate the shelf locally before building:
+
+```bash
+uv run --env-file .env python rituals/summarize_runtime.py
+uv run --env-file .env python rituals/build_index.py
+```
+
+The Docker build fails if either generated shelf file is missing.
+
+Build locally:
+
+```bash
+docker build -t ghost-on-the-shelf .
+```
+
+Run locally:
+
+```bash
+docker run --rm -p 8000:8000 \
+  -e OPENAI_API_KEY \
+  -e GHOST_ENV=production \
+  -e GHOST_ALLOWED_ORIGINS=http://localhost:5173 \
+  -e GHOST_DOCS_USERNAME \
+  -e GHOST_DOCS_PASSWORD \
+  ghost-on-the-shelf
+```
+
+For Cloud Run, build and push this Docker image after regenerating the local shelf artifacts, then deploy the image with runtime secrets/env vars configured for:
+
+- `OPENAI_API_KEY`
+- `GHOST_ENV=production`
+- `GHOST_ALLOWED_ORIGINS=https://your-frontend.example`
+- `GHOST_DOCS_USERNAME`
+- `GHOST_DOCS_PASSWORD`
+
 ## API Contract
 
 ### `GET /health`
