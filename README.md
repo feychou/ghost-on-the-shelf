@@ -74,12 +74,17 @@ Create `.env` locally:
 
 ```bash
 OPENAI_API_KEY=your_api_key_here
+GHOST_CHAT_ENABLED=true
+GHOST_MODERATION_ENABLED=true
+GHOST_CHAT_SESSION_RATE_LIMIT_PER_MINUTE=6
 GHOST_DOCS_USERNAME=choose-a-docs-username
 GHOST_DOCS_PASSWORD=choose-a-strong-docs-password
 
 # Required in production
 GHOST_ENV=production
 GHOST_ALLOWED_ORIGINS=https://your-frontend.example
+GHOST_ACCESS_CODE=choose-an-invite-code
+GHOST_ACCESS_COOKIE_SECRET=choose-a-strong-cookie-signing-secret
 ```
 
 For local development, `GHOST_ENV` can be omitted. The server defaults to local browser origins such as `http://localhost:3000` and `http://localhost:5173`. Docs auth has no hard-coded fallback; `/docs` and `/openapi.json` are unavailable until both docs credential env vars are set.
@@ -157,8 +162,12 @@ Run locally:
 ```bash
 docker run --rm -p 8000:8000 \
   -e OPENAI_API_KEY \
+  -e GHOST_CHAT_ENABLED=true \
+  -e GHOST_MODERATION_ENABLED=true \
   -e GHOST_ENV=production \
   -e GHOST_ALLOWED_ORIGINS=http://localhost:5173 \
+  -e GHOST_ACCESS_CODE \
+  -e GHOST_ACCESS_COOKIE_SECRET \
   -e GHOST_DOCS_USERNAME \
   -e GHOST_DOCS_PASSWORD \
   ghost-on-the-shelf
@@ -167,8 +176,12 @@ docker run --rm -p 8000:8000 \
 For Cloud Run, build and push this Docker image after regenerating the local shelf artifacts, then deploy the image with runtime secrets/env vars configured for:
 
 - `OPENAI_API_KEY`
+- `GHOST_CHAT_ENABLED=true`
+- `GHOST_MODERATION_ENABLED=true`
 - `GHOST_ENV=production`
 - `GHOST_ALLOWED_ORIGINS=https://your-frontend.example`
+- `GHOST_ACCESS_CODE`
+- `GHOST_ACCESS_COOKIE_SECRET`
 - `GHOST_DOCS_USERNAME`
 - `GHOST_DOCS_PASSWORD`
 
@@ -193,6 +206,8 @@ Example response:
 ### `POST /v1/awakening`
 
 Checks whether the archive can awaken before the client enables chat. This endpoint does not estimate remaining OpenAI credits. Instead, it verifies that shelf artifacts are loaded and that the server can successfully make tiny `store=false` OpenAI embedding and response probes.
+
+In production, the client must first unlock access with `POST /v1/access`; otherwise this endpoint returns `401` before any OpenAI probe.
 
 Successful response:
 
@@ -226,6 +241,10 @@ Possible `reason` values:
 
 ### `POST /v1/chat`
 
+In production, this endpoint requires the signed access cookie issued by `POST /v1/access`.
+
+If `GHOST_CHAT_ENABLED=false`, this endpoint returns `503` before retrieval, embedding, answer, or summary calls. `POST /v1/access`, `POST /v1/awakening`, `/health`, `/docs`, and `/openapi.json` remain available.
+
 Request:
 
 ```json
@@ -253,7 +272,7 @@ Response:
 }
 ```
 
-`k` is optional and defaults to `3`. The server embeds the user message, cosine-ranks the generated memory index, injects the top fragments, calls the OpenAI Responses API with `store=false`, then runs one small summary update call after a successful reply.
+`k` is optional and defaults to `3`. When moderation is enabled, the server first checks the user message with OpenAI moderation. Flagged messages return a normal chat response with a calm blocked reply, the existing `session_summary`, and an empty `retrieved` list before embedding, retrieval, answer, or summary calls. Allowed messages are embedded, cosine-ranked against the generated memory index, injected with the top fragments, sent to the OpenAI Responses API with `store=false`, then followed by one small summary update call after a successful reply.
 
 ## OpenAI Availability
 
@@ -266,7 +285,9 @@ For this app, `/v1/awakening` answers the more useful runtime question: can this
 The signal chamber keeps only lightweight in-memory protection:
 
 - Awakening probe rate limit: `10` accepted requests per IP per minute
+- Access unlock rate limit: `5` accepted attempts per IP per minute
 - Chat rate limit: `6` accepted requests per IP per minute
+- Per-access-session chat rate limit: `6` accepted requests per session per minute
 - Max concurrent chat requests: `2`
 - Max message length: `100` characters
 - Max summary length: `3000` characters
@@ -276,13 +297,28 @@ The signal chamber keeps only lightweight in-memory protection:
 - Chat reasoning effort: `medium`
 - Summary reasoning effort: `low`
 
-The server rejects invalid or abusive requests before OpenAI calls when possible: empty messages, oversized messages, oversized summaries, disallowed production origins, IP rate limit exhaustion, and concurrency exhaustion.
+The server rejects invalid or abusive requests before chat model calls when possible: empty messages, oversized messages, oversized summaries, disallowed production origins, IP or session rate limit exhaustion, concurrency exhaustion, and flagged moderation results.
 
 The answer word limit, model IDs, retrieval `k` defaults, output-token caps, and reasoning effort are defined in `core/synapse/protocol.py`. The signal chamber and staging journal both import that protocol so the notebook remains a faithful rehearsal surface for the live API.
 
 These limits are in memory. They reset on server restart and are only reliable for one running process.
 
 ## Production Controls
+
+Set one invite code and a cookie signing secret:
+
+```bash
+GHOST_ACCESS_CODE=your-invite-code
+GHOST_ACCESS_COOKIE_SECRET=your-strong-random-secret
+```
+
+`POST /v1/access` accepts the invite code and sets a signed `ghost_access` cookie with `HttpOnly`, `SameSite=Lax`, and `Secure` in production. The cookie contains an opaque anonymous session id, expires after 30 days, and is used for per-session chat abuse controls plus OpenAI Responses `safety_identifier` on chat answer and summary calls. You can provide `GHOST_ACCESS_CODE_HASH` instead of `GHOST_ACCESS_CODE`; it should be the lowercase SHA-256 hex digest of the invite code. `GHOST_ACCESS_RATE_LIMIT_PER_MINUTE` controls unlock attempts and defaults to `5`.
+
+`GHOST_CHAT_SESSION_RATE_LIMIT_PER_MINUTE` controls the per-access-session chat limit. It defaults to `6` and is enforced in addition to the existing client/IP chat limit.
+
+`GHOST_MODERATION_ENABLED` controls the chat-input moderation precheck. If unset, moderation is enabled in production and disabled in development. `GHOST_MODERATION_MODEL` defaults to `omni-moderation-latest`.
+
+In production (`GHOST_ENV=production`), `/v1/chat` and `/v1/awakening` require a valid access cookie. `/health`, `/docs`, and `/openapi.json` are not moved behind this gate.
 
 Set exact browser origins with `GHOST_ALLOWED_ORIGINS`, comma-separated:
 

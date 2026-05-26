@@ -6,6 +6,7 @@ from fastapi import HTTPException, Request, status
 from openai import OpenAI
 
 from core.synapse.runtime import RuntimeArchive
+from signal_chamber.server.access import access_session_id
 from signal_chamber.server.guards import GuardRejected, InMemoryGuards
 
 
@@ -53,6 +54,14 @@ def client_key(request: Request) -> str:
         return request.client.host
 
     return "unknown"
+
+
+def access_cookie_session_id(request: Request) -> str | None:
+    settings = request.app.state.settings
+    token = request.cookies.get(settings.access_cookie_name)
+    session_id = access_session_id(settings, token)
+
+    return session_id or None
 
 
 def limit_exception(exc: GuardRejected) -> HTTPException:

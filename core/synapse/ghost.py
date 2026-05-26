@@ -43,19 +43,35 @@ class GhostEngine:
         self.archive = archive
         self.client = client
 
-    def answer(self, message: str, session_summary: str, fragments: list[RetrievedFragment]) -> GhostReply:
+    def answer(
+        self,
+        message: str,
+        session_summary: str,
+        fragments: list[RetrievedFragment],
+        *,
+        safety_identifier: str | None = None,
+    ) -> GhostReply:
         retrieved_context = format_memory_fragments(fragments)
         ghost_input = self._build_ghost_input(message, session_summary, retrieved_context)
-        response = self.client.responses.create(
-            model=self.protocol.chat_model,
-            instructions=self.archive.runtime_prompt,
-            input=ghost_input,
-            max_output_tokens=self.protocol.max_output_tokens,
-            reasoning={"effort": self.protocol.reasoning_effort},
-            store=False,
-        )
+        response_kwargs = {
+            "model": self.protocol.chat_model,
+            "instructions": self.archive.runtime_prompt,
+            "input": ghost_input,
+            "max_output_tokens": self.protocol.max_output_tokens,
+            "reasoning": {"effort": self.protocol.reasoning_effort},
+            "store": False,
+        }
+        if safety_identifier:
+            response_kwargs["safety_identifier"] = safety_identifier
+
+        response = self.client.responses.create(**response_kwargs)
         reply = self._output_text_or_raise(response, "ghost reply")
-        updated_summary = self._update_summary(session_summary, message, reply)
+        updated_summary = self._update_summary(
+            session_summary,
+            message,
+            reply,
+            safety_identifier=safety_identifier,
+        )
 
         return GhostReply(
             reply=reply,
@@ -63,7 +79,14 @@ class GhostEngine:
             retrieved=fragments,
         )
 
-    def _update_summary(self, session_summary: str, message: str, reply: str) -> str:
+    def _update_summary(
+        self,
+        session_summary: str,
+        message: str,
+        reply: str,
+        *,
+        safety_identifier: str | None = None,
+    ) -> str:
         summary_input = f"""CURRENT SESSION SUMMARY:
 {session_summary or "No prior session summary."}
 
@@ -75,14 +98,18 @@ LATEST GHOST REPLY:
 
 Write the updated rolling summary now."""
 
-        response = self.client.responses.create(
-            model=self.protocol.summary_model,
-            instructions=self._summary_instructions(),
-            input=summary_input,
-            max_output_tokens=self.protocol.summary_max_output_tokens,
-            reasoning={"effort": self.protocol.summary_reasoning_effort},
-            store=False,
-        )
+        response_kwargs = {
+            "model": self.protocol.summary_model,
+            "instructions": self._summary_instructions(),
+            "input": summary_input,
+            "max_output_tokens": self.protocol.summary_max_output_tokens,
+            "reasoning": {"effort": self.protocol.summary_reasoning_effort},
+            "store": False,
+        }
+        if safety_identifier:
+            response_kwargs["safety_identifier"] = safety_identifier
+
+        response = self.client.responses.create(**response_kwargs)
 
         return self._output_text_or_raise(response, "session summary")[: self.protocol.max_summary_chars]
 

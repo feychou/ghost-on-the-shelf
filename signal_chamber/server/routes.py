@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request, status
+from fastapi.responses import JSONResponse
 from openai import OpenAIError
 
 from core.synapse.awakening import probe_openai_for_awakening
 from core.synapse.ghost import GhostEngine, GhostResponseError
 from core.synapse.retrieval import MemoryRetriever
+from signal_chamber.server.access import create_access_token, invite_code_is_valid
 from signal_chamber.server.dependencies import (
+    access_cookie_session_id,
     archive_or_none,
     client_key,
     guards,
@@ -16,7 +19,10 @@ from signal_chamber.server.dependencies import (
     require_archive,
 )
 from signal_chamber.server.guards import GuardRejected
+from signal_chamber.server.moderation import message_is_flagged
 from signal_chamber.server.schemas import (
+    AccessRequest,
+    AccessResponse,
     AwakeningResponse,
     ChatRequest,
     ChatResponse,
@@ -27,6 +33,10 @@ from signal_chamber.server.settings import Settings
 
 
 router = APIRouter()
+
+BLOCKED_CHAT_REPLY = (
+    "I can't help with that request, but I can stay with safer questions about the archive."
+)
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -40,6 +50,41 @@ async def health(request: Request) -> HealthResponse:
         archive_error=request.app.state.archive_error,
         chunk_count=archive.memory_index.chunk_count if archive else 0,
     )
+
+
+@router.post("/v1/access", response_model=AccessResponse)
+async def access(request: Request, payload: AccessRequest) -> JSONResponse:
+    settings = request.app.state.settings
+    request_guards = guards(request)
+
+    if not settings.access_configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Access gate is not configured.",
+        )
+
+    try:
+        await request_guards.check_access(client_key(request))
+    except GuardRejected as exc:
+        raise limit_exception(exc) from exc
+
+    if not invite_code_is_valid(settings, payload.code):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid access code.",
+        )
+
+    response = JSONResponse(content=AccessResponse(access_granted=True).model_dump())
+    response.set_cookie(
+        key=settings.access_cookie_name,
+        value=create_access_token(settings),
+        max_age=settings.access_cookie_max_age_seconds,
+        httponly=True,
+        secure=settings.production,
+        samesite="lax",
+    )
+
+    return response
 
 
 @router.post("/v1/awakening", response_model=AwakeningResponse)
@@ -104,21 +149,42 @@ async def chat(request: Request, payload: ChatRequest) -> ChatResponse:
 
     _validate_chat_payload(settings, message, session_summary, k)
 
+    if not settings.chat_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Chat is currently disabled.",
+        )
+
     archive = require_archive(request)
     client = openai_client(request)
     request_guards = guards(request)
+    client_rate_key = client_key(request)
+    session_id = access_cookie_session_id(request)
+    session_rate_key = f"access:{session_id}" if session_id else f"client:{client_rate_key}"
 
     try:
-        await request_guards.begin_chat(client_key(request))
+        await request_guards.begin_chat(client_rate_key, session_rate_key)
     except GuardRejected as exc:
         raise limit_exception(exc) from exc
 
     try:
+        if message_is_flagged(client, settings, message):
+            return ChatResponse(
+                reply=BLOCKED_CHAT_REPLY,
+                session_summary=session_summary,
+                retrieved=[],
+            )
+
         retriever = MemoryRetriever(client, archive.memory_index)
         retrieval_query = _build_retrieval_query(message, session_summary)
         fragments = retriever.retrieve(retrieval_query, k=k)
         ghost = GhostEngine(settings.protocol, archive, client)
-        ghost_reply = ghost.answer(message, session_summary, fragments)
+        ghost_reply = ghost.answer(
+            message,
+            session_summary,
+            fragments,
+            safety_identifier=session_id,
+        )
     except OpenAIError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,

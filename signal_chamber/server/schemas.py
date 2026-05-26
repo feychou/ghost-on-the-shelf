@@ -46,6 +46,14 @@ class ChatResponse(BaseModel):
     retrieved: list[RetrievedFragmentModel]
 
 
+class AccessRequest(BaseModel):
+    code: str = Field(description="Invite phrase or code.")
+
+
+class AccessResponse(BaseModel):
+    access_granted: bool
+
+
 class AwakeningResponse(BaseModel):
     can_awaken: bool
     reason: Literal[

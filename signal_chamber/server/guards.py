@@ -21,6 +21,16 @@ class InMemoryGuards:
         self._rate_events: dict[str, dict[str, deque[float]]] = defaultdict(lambda: defaultdict(deque))
         self._active_chats = 0
 
+    async def check_access(self, key: str) -> None:
+        async with self._lock:
+            now = self._now()
+            self._commit_rate_or_reject(
+                bucket="access",
+                key=key,
+                limit=self.settings.access_rate_limit_per_minute,
+                now=now,
+            )
+
     async def check_awakening(self, key: str) -> None:
         async with self._lock:
             now = self._now()
@@ -31,13 +41,19 @@ class InMemoryGuards:
                 now=now,
             )
 
-    async def begin_chat(self, key: str) -> None:
+    async def begin_chat(self, key: str, session_key: str | None = None) -> None:
         async with self._lock:
             now = self._now()
             self._commit_rate_or_reject(
                 bucket="chat",
                 key=key,
                 limit=self.settings.chat_rate_limit_per_minute,
+                now=now,
+            )
+            self._commit_rate_or_reject(
+                bucket="chat_session",
+                key=session_key or f"missing:{key}",
+                limit=self.settings.chat_session_rate_limit_per_minute,
                 now=now,
             )
 

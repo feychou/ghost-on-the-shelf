@@ -38,6 +38,23 @@ def _int_env(name: str, default: int) -> int:
         raise ValueError(f"{name} must be an integer") from exc
 
 
+def _bool_env(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+
+    if raw is None:
+        return default
+
+    value = raw.strip().lower()
+
+    if value in {"1", "true", "yes", "on"}:
+        return True
+
+    if value in {"0", "false", "no", "off"}:
+        return False
+
+    raise ValueError(f"{name} must be a boolean")
+
+
 @dataclass(frozen=True)
 class Settings:
     root: Path = ROOT
@@ -49,19 +66,42 @@ class Settings:
     docs_password: str = ""
     docs_credentials_configured: bool = False
 
+    access_code: str = ""
+    access_code_hash: str = ""
+    access_cookie_secret: str = ""
+    access_cookie_name: str = "ghost_access"
+    access_cookie_max_age_seconds: int = 60 * 60 * 24 * 30
+
     protocol: SynapseProtocol = field(default_factory=SynapseProtocol)
 
     openai_api_key_configured: bool = False
+    chat_enabled: bool = True
+    moderation_enabled: bool | None = None
+    moderation_model: str = "omni-moderation-latest"
+    access_rate_limit_per_minute: int = 5
     awakening_rate_limit_per_minute: int = 10
     chat_rate_limit_per_minute: int = 6
+    chat_session_rate_limit_per_minute: int = 6
     max_concurrent_chats: int = 2
 
     runtime_prompt_path: Path = ROOT / "core" / "shelf" / "ghost_runtime.md"
     memory_index_path: Path = ROOT / "core" / "shelf" / "indexes" / "memory_index.json"
 
+    def __post_init__(self) -> None:
+        if self.moderation_enabled is None:
+            object.__setattr__(self, "moderation_enabled", self.production)
+
     @property
     def production(self) -> bool:
         return self.environment in {"production", "prod"}
+
+    @property
+    def access_required(self) -> bool:
+        return self.production or bool(self.access_code or self.access_code_hash)
+
+    @property
+    def access_configured(self) -> bool:
+        return bool((self.access_code or self.access_code_hash) and self.access_cookie_secret)
 
     @property
     def chat_model(self) -> str:
@@ -116,6 +156,9 @@ class Settings:
         docs_username = os.getenv("GHOST_DOCS_USERNAME", "").strip()
         docs_password = os.getenv("GHOST_DOCS_PASSWORD", "").strip()
         docs_credentials_configured = bool(docs_username and docs_password)
+        access_code = os.getenv("GHOST_ACCESS_CODE", "").strip()
+        access_code_hash = os.getenv("GHOST_ACCESS_CODE_HASH", "").strip().lower()
+        access_cookie_secret = os.getenv("GHOST_ACCESS_COOKIE_SECRET", "")
 
         return cls(
             environment=environment,
@@ -124,9 +167,18 @@ class Settings:
             docs_username=docs_username,
             docs_password=docs_password,
             docs_credentials_configured=docs_credentials_configured,
+            access_code=access_code,
+            access_code_hash=access_code_hash,
+            access_cookie_secret=access_cookie_secret,
             protocol=protocol,
             openai_api_key_configured=bool(os.getenv("OPENAI_API_KEY")),
+            chat_enabled=_bool_env("GHOST_CHAT_ENABLED", True),
+            moderation_enabled=_bool_env("GHOST_MODERATION_ENABLED", production),
+            moderation_model=os.getenv("GHOST_MODERATION_MODEL", "omni-moderation-latest").strip()
+            or "omni-moderation-latest",
+            access_rate_limit_per_minute=_int_env("GHOST_ACCESS_RATE_LIMIT_PER_MINUTE", 5),
             awakening_rate_limit_per_minute=_int_env("GHOST_AWAKENING_RATE_LIMIT_PER_MINUTE", 10),
             chat_rate_limit_per_minute=_int_env("GHOST_CHAT_RATE_LIMIT_PER_MINUTE", 6),
+            chat_session_rate_limit_per_minute=_int_env("GHOST_CHAT_SESSION_RATE_LIMIT_PER_MINUTE", 6),
             max_concurrent_chats=_int_env("GHOST_MAX_CONCURRENT_CHATS", 2),
         )
