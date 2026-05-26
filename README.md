@@ -268,7 +268,7 @@ The signal chamber keeps only lightweight in-memory protection:
 - Awakening probe rate limit: `10` accepted requests per IP per minute
 - Chat rate limit: `6` accepted requests per IP per minute
 - Max concurrent chat requests: `2`
-- Max message length: `2000` characters
+- Max message length: `100` characters
 - Max summary length: `3000` characters
 - Answer word limit: `150` words
 - Max chat output tokens: `1500`

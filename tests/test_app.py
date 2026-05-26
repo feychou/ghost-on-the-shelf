@@ -339,6 +339,22 @@ def test_chat_rejects_invalid_input_before_openai() -> None:
     assert fake_openai.embedding_calls == []
 
 
+def test_chat_rejects_messages_over_default_limit_before_openai() -> None:
+    fake_openai = FakeOpenAI()
+    api = client(fake_openai)
+
+    response = api.post(
+        "/v1/chat",
+        headers={"Origin": "https://ghost.example"},
+        json={"message": "x" * 101},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Message exceeds 100 characters."
+    assert fake_openai.response_calls == []
+    assert fake_openai.embedding_calls == []
+
+
 def test_chat_rate_limit_blocks_before_openai() -> None:
     fake_openai = FakeOpenAI()
     api = client(fake_openai, chat_rate_limit_per_minute=1)

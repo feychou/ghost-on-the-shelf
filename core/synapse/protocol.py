@@ -40,7 +40,7 @@ class SynapseProtocol:
     default_k: int = 3
     max_k: int = 8
 
-    max_message_chars: int = 2000
+    max_message_chars: int = 100
     max_summary_chars: int = 3000
 
     answer_word_limit: int = DEFAULT_ANSWER_WORD_LIMIT
@@ -65,7 +65,7 @@ class SynapseProtocol:
             ),
             default_k=_int_env("GHOST_DEFAULT_K", 3),
             max_k=_int_env("GHOST_MAX_K", 8),
-            max_message_chars=_int_env("GHOST_MAX_MESSAGE_CHARS", 2000),
+            max_message_chars=_int_env("GHOST_MAX_MESSAGE_CHARS", 100),
             max_summary_chars=_int_env("GHOST_MAX_SUMMARY_CHARS", 3000),
             answer_word_limit=_int_env("GHOST_ANSWER_WORD_LIMIT", DEFAULT_ANSWER_WORD_LIMIT),
             summary_word_limit=_int_env("GHOST_SUMMARY_WORD_LIMIT", DEFAULT_SUMMARY_WORD_LIMIT),
