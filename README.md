@@ -95,18 +95,20 @@ OPENAI_API_KEY=your_api_key_here
 GHOST_CHAT_ENABLED=true
 GHOST_MODERATION_ENABLED=true
 GHOST_CHAT_SESSION_RATE_LIMIT_PER_MINUTE=6
-GHOST_ACCESS_COOKIE_MAX_AGE_SECONDS=3600
+GHOST_ACCESS_TOKEN_MAX_AGE_SECONDS=3600
 GHOST_DOCS_USERNAME=choose-a-docs-username
 GHOST_DOCS_PASSWORD=choose-a-strong-docs-password
 
-# Required in production
+# Required when access is enabled
+GHOST_ACCESS_CODE=choose-an-invite-code
+GHOST_ACCESS_TOKEN_SECRET=choose-a-strong-token-signing-secret
+
+# Required in production for browser origin enforcement
 GHOST_ENV=production
 GHOST_ALLOWED_ORIGINS=https://your-frontend.example
-GHOST_ACCESS_CODE=choose-an-invite-code
-GHOST_ACCESS_COOKIE_SECRET=choose-a-strong-cookie-signing-secret
 ```
 
-For local development, `GHOST_ENV` can be omitted. The server defaults to local browser origins such as `http://localhost:3000` and `http://localhost:5173`. Docs auth has no hard-coded fallback; `/docs` and `/openapi.json` are unavailable until both docs credential env vars are set.
+For local development, `GHOST_ENV` can be omitted. The server defaults to local browser origins such as `http://localhost:3000` and `http://localhost:5173`. If `GHOST_ACCESS_CODE` or `GHOST_ACCESS_CODE_HASH` is set, `/v1/chat` and `/v1/awakening` require a valid access token in any environment. Docs auth has no hard-coded fallback; `/docs` and `/openapi.json` are unavailable until both docs credential env vars are set.
 
 ## Ritual Workflow
 
@@ -151,7 +153,24 @@ Try the local endpoints:
 
 ```bash
 curl http://localhost:8000/health
-curl -X POST -H "Origin: http://localhost:5173" http://localhost:8000/v1/awakening
+```
+
+```bash
+curl -X POST \
+  -H "Origin: http://localhost:5173" \
+  -H "Content-Type: application/json" \
+  -d '{"code":"your-invite-code"}' \
+  http://localhost:8000/v1/access
+```
+
+```bash
+curl -X POST \
+  -H "Origin: http://localhost:5173" \
+  -H "Authorization: Bearer your-access-token" \
+  http://localhost:8000/v1/awakening
+```
+
+```bash
 curl -u "$GHOST_DOCS_USERNAME:$GHOST_DOCS_PASSWORD" http://localhost:8000/openapi.json
 ```
 
@@ -186,8 +205,8 @@ docker run --rm -p 8000:8000 \
   -e GHOST_ENV=production \
   -e GHOST_ALLOWED_ORIGINS=http://localhost:5173 \
   -e GHOST_ACCESS_CODE \
-  -e GHOST_ACCESS_COOKIE_SECRET \
-  -e GHOST_ACCESS_COOKIE_MAX_AGE_SECONDS=3600 \
+  -e GHOST_ACCESS_TOKEN_SECRET \
+  -e GHOST_ACCESS_TOKEN_MAX_AGE_SECONDS=3600 \
   -e GHOST_DOCS_USERNAME \
   -e GHOST_DOCS_PASSWORD \
   ghost-on-the-shelf
@@ -201,8 +220,8 @@ For Cloud Run, build and push this Docker image after regenerating the local she
 - `GHOST_ENV=production`
 - `GHOST_ALLOWED_ORIGINS=https://your-frontend.example`
 - `GHOST_ACCESS_CODE`
-- `GHOST_ACCESS_COOKIE_SECRET`
-- `GHOST_ACCESS_COOKIE_MAX_AGE_SECONDS=3600`
+- `GHOST_ACCESS_TOKEN_SECRET`
+- `GHOST_ACCESS_TOKEN_MAX_AGE_SECONDS=3600`
 - `GHOST_DOCS_USERNAME`
 - `GHOST_DOCS_PASSWORD`
 
@@ -224,11 +243,40 @@ Example response:
 }
 ```
 
+### `POST /v1/access`
+
+Accepts the invite code and returns a short-lived signed bearer token. The server does not store access sessions; it verifies the token signature and expiry on protected requests.
+
+Request:
+
+```json
+{
+  "code": "your-invite-code"
+}
+```
+
+Successful response:
+
+```json
+{
+  "access_granted": true,
+  "access_token": "signed-token",
+  "token_type": "bearer",
+  "expires_in": 3600
+}
+```
+
+Use the returned token on protected API calls:
+
+```http
+Authorization: Bearer signed-token
+```
+
 ### `POST /v1/awakening`
 
 Checks whether the archive can awaken before the client enables chat. This endpoint does not estimate remaining OpenAI credits. Instead, it verifies that shelf artifacts are loaded and that the server can successfully make tiny `store=false` OpenAI embedding and response probes.
 
-In production, the client must first unlock access with `POST /v1/access`; otherwise this endpoint returns `401` before any OpenAI probe.
+When access is configured, the client must first unlock access with `POST /v1/access` and send the returned bearer token; otherwise this endpoint returns `401` before any OpenAI probe.
 
 Successful response:
 
@@ -262,7 +310,7 @@ Possible `reason` values:
 
 ### `POST /v1/chat`
 
-In production, this endpoint requires the signed access cookie issued by `POST /v1/access`.
+When access is configured, this endpoint requires a signed bearer token issued by `POST /v1/access`.
 
 If `GHOST_CHAT_ENABLED=false`, this endpoint returns `503` before retrieval, embedding, answer, or summary calls. `POST /v1/access`, `POST /v1/awakening`, `/health`, `/docs`, and `/openapi.json` remain available.
 
@@ -318,23 +366,23 @@ The answer word limit, model IDs, retrieval `k` defaults, output-token caps, and
 
 These limits are in memory. They reset on server restart and are only reliable for one running process.
 
-## Production Controls
+## Access Controls
 
-Set one invite code and a cookie signing secret:
+Set one invite code and a token signing secret:
 
 ```bash
 GHOST_ACCESS_CODE=your-invite-code
-GHOST_ACCESS_COOKIE_SECRET=your-strong-random-secret
-GHOST_ACCESS_COOKIE_MAX_AGE_SECONDS=3600
+GHOST_ACCESS_TOKEN_SECRET=your-strong-random-secret
+GHOST_ACCESS_TOKEN_MAX_AGE_SECONDS=3600
 ```
 
-`POST /v1/access` accepts the invite code and sets a signed `ghost_access` cookie with `HttpOnly`, `SameSite=Lax`, and `Secure` in production. The cookie contains an opaque anonymous session id, expires after one hour by default, and is used for per-session chat abuse controls plus OpenAI Responses `safety_identifier` on chat answer and summary calls. You can provide `GHOST_ACCESS_CODE_HASH` instead of `GHOST_ACCESS_CODE`; it should be the lowercase SHA-256 hex digest of the invite code. `GHOST_ACCESS_COOKIE_MAX_AGE_SECONDS` controls the cookie lifetime and defaults to `3600`. `GHOST_ACCESS_RATE_LIMIT_PER_MINUTE` controls unlock attempts and defaults to `5`.
+`POST /v1/access` accepts the invite code and returns a signed bearer token. The token contains an opaque anonymous session id, expires after one hour by default, and is used for per-session chat abuse controls plus OpenAI Responses `safety_identifier` on chat answer and summary calls. Send it on protected requests with `Authorization: Bearer <token>`. You can provide `GHOST_ACCESS_CODE_HASH` instead of `GHOST_ACCESS_CODE`; it should be the lowercase SHA-256 hex digest of the invite code. `GHOST_ACCESS_TOKEN_MAX_AGE_SECONDS` controls the token lifetime and defaults to `3600`. `GHOST_ACCESS_RATE_LIMIT_PER_MINUTE` controls unlock attempts and defaults to `5`.
 
 `GHOST_CHAT_SESSION_RATE_LIMIT_PER_MINUTE` controls the per-access-session chat limit. It defaults to `6` and is enforced in addition to the existing client/IP chat limit.
 
 `GHOST_MODERATION_ENABLED` controls the chat-input moderation precheck. If unset, moderation is enabled in production and disabled in development. `GHOST_MODERATION_MODEL` defaults to `omni-moderation-latest`.
 
-In production (`GHOST_ENV=production`), `/v1/chat` and `/v1/awakening` require a valid access cookie. `/health`, `/docs`, and `/openapi.json` are not moved behind this gate.
+When `GHOST_ACCESS_CODE` or `GHOST_ACCESS_CODE_HASH` is set, `/v1/chat` and `/v1/awakening` require a valid access token in any environment. In production (`GHOST_ENV=production`), access is always required. `/health`, `/docs`, and `/openapi.json` are not moved behind this gate.
 
 Set exact browser origins with `GHOST_ALLOWED_ORIGINS`, comma-separated:
 
@@ -342,7 +390,7 @@ Set exact browser origins with `GHOST_ALLOWED_ORIGINS`, comma-separated:
 GHOST_ALLOWED_ORIGINS=https://app.example.com,https://www.example.com
 ```
 
-In production (`GHOST_ENV=production`), CORS middleware uses those origins and custom middleware rejects `/v1/*` requests with missing or unapproved `Origin` headers. CORS preflight `OPTIONS` requests are allowed through, and `/health` is not origin-restricted.
+In production (`GHOST_ENV=production`), CORS middleware uses those origins and custom middleware rejects `/v1/*` requests with missing or unapproved `Origin` headers. CORS allows `Authorization` and `Content-Type` request headers for bearer-token clients. CORS preflight `OPTIONS` requests are allowed through, and `/health` is not origin-restricted.
 
 This limits normal browser calls from other domains. It is not full authentication against custom scripts because non-browser clients can spoof `Origin`.
 

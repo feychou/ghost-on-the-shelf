@@ -11,6 +11,7 @@ from signal_chamber.server.settings import Settings
 
 TOKEN_VERSION = "v1"
 SESSION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{16,128}$")
+AUTHORIZATION_SCHEME = "bearer"
 
 
 def invite_code_is_valid(settings: Settings, code: str) -> bool:
@@ -40,6 +41,23 @@ def create_access_token(settings: Settings, now: int | None = None) -> str:
 
 def access_token_is_valid(settings: Settings, token: str | None, now: int | None = None) -> bool:
     return access_session_id(settings, token, now=now) is not None
+
+
+def access_token_from_authorization(authorization: str | None) -> str | None:
+    if not authorization:
+        return None
+
+    parts = authorization.strip().split()
+
+    if len(parts) != 2:
+        return None
+
+    scheme, token = parts
+
+    if scheme.lower() != AUTHORIZATION_SCHEME:
+        return None
+
+    return token or None
 
 
 def access_session_id(settings: Settings, token: str | None, now: int | None = None) -> str | None:
@@ -72,7 +90,7 @@ def access_session_id(settings: Settings, token: str | None, now: int | None = N
 
     current_time = int(time.time() if now is None else now)
 
-    if not 0 <= current_time - issued_at <= settings.access_cookie_max_age_seconds:
+    if not 0 <= current_time - issued_at <= settings.access_token_max_age_seconds:
         return None
 
     return session_id
@@ -80,7 +98,7 @@ def access_session_id(settings: Settings, token: str | None, now: int | None = N
 
 def _sign(settings: Settings, payload: str) -> str:
     return hmac.new(
-        settings.access_cookie_secret.encode("utf-8"),
+        settings.access_token_secret.encode("utf-8"),
         payload.encode("utf-8"),
         hashlib.sha256,
     ).hexdigest()

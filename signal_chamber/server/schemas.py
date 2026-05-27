@@ -52,6 +52,9 @@ class AccessRequest(BaseModel):
 
 class AccessResponse(BaseModel):
     access_granted: bool
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"
+    expires_in: int
 
 
 class AwakeningResponse(BaseModel):

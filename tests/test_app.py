@@ -123,7 +123,7 @@ def settings(**overrides) -> Settings:
         "docs_password": "secret",
         "docs_credentials_configured": True,
         "access_code": ACCESS_CODE,
-        "access_cookie_secret": "test-cookie-secret",
+        "access_token_secret": "test-token-secret",
         "openai_api_key_configured": True,
         "moderation_enabled": True,
         "access_rate_limit_per_minute": 10,
@@ -143,7 +143,11 @@ def test_moderation_default_follows_environment() -> None:
     assert Settings(environment="production", moderation_enabled=False).moderation_enabled is False
 
 
-def grant_access(api: TestClient) -> None:
+def access_header(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+def grant_access(api: TestClient) -> str:
     response = api.post(
         "/v1/access",
         headers={"Origin": ORIGIN},
@@ -151,6 +155,10 @@ def grant_access(api: TestClient) -> None:
     )
 
     assert response.status_code == 200
+    token = response.json()["access_token"]
+    api.headers.update(access_header(token))
+
+    return token
 
 
 def client(
@@ -213,7 +221,7 @@ def test_docs_and_schema_are_basic_auth_protected() -> None:
     assert "/v1/introspection" not in paths
 
 
-def test_health_and_docs_do_not_require_access_cookie() -> None:
+def test_health_and_docs_do_not_require_access_token() -> None:
     api = client(auto_access=False)
 
     assert api.get("/health").status_code == 200
@@ -221,7 +229,7 @@ def test_health_and_docs_do_not_require_access_cookie() -> None:
     assert api.get("/openapi.json", headers=basic_auth_header()).status_code == 200
 
 
-def test_chat_requires_access_cookie_before_openai() -> None:
+def test_chat_requires_access_token_before_openai() -> None:
     fake_openai = FakeOpenAI()
     api = client(fake_openai, auto_access=False)
 
@@ -236,14 +244,13 @@ def test_chat_requires_access_cookie_before_openai() -> None:
     assert fake_openai.embedding_calls == []
 
 
-def test_chat_rejects_invalid_access_cookie_before_openai() -> None:
+def test_chat_rejects_invalid_access_token_before_openai() -> None:
     fake_openai = FakeOpenAI()
     api = client(fake_openai, auto_access=False)
-    api.cookies.set("ghost_access", "invalid")
 
     response = api.post(
         "/v1/chat",
-        headers={"Origin": ORIGIN},
+        headers={"Origin": ORIGIN, **access_header("invalid")},
         json={"message": "Hello"},
     )
 
@@ -258,7 +265,7 @@ def test_chat_fails_closed_when_access_gate_is_not_configured() -> None:
         fake_openai,
         auto_access=False,
         access_code="",
-        access_cookie_secret="",
+        access_token_secret="",
     )
 
     response = api.post(
@@ -273,7 +280,7 @@ def test_chat_fails_closed_when_access_gate_is_not_configured() -> None:
     assert fake_openai.embedding_calls == []
 
 
-def test_awakening_requires_access_cookie_before_openai() -> None:
+def test_awakening_requires_access_token_before_openai() -> None:
     fake_openai = FakeOpenAI()
     api = client(fake_openai, auto_access=False)
 
@@ -293,20 +300,19 @@ def test_access_accepts_valid_code_and_unlocks_chat() -> None:
         headers={"Origin": ORIGIN},
         json={"code": ACCESS_CODE},
     )
+    access_body = access_response.json()
     chat_response = api.post(
         "/v1/chat",
-        headers={"Origin": ORIGIN},
+        headers={"Origin": ORIGIN, **access_header(access_body["access_token"])},
         json={"message": "Tell me about Alpha"},
     )
 
     assert access_response.status_code == 200
-    assert access_response.json() == {"access_granted": True}
-    assert "ghost_access" in access_response.cookies
-    set_cookie = access_response.headers["set-cookie"]
-    assert "HttpOnly" in set_cookie
-    assert "Max-Age=3600" in set_cookie
-    assert "SameSite=lax" in set_cookie
-    assert "Secure" in set_cookie
+    assert access_body["access_granted"] is True
+    assert access_body["token_type"] == "bearer"
+    assert access_body["expires_in"] == 3600
+    assert access_body["access_token"].count(".") == 3
+    assert "set-cookie" not in access_response.headers
     assert chat_response.status_code == 200
     assert len(fake_openai.embedding_calls) == 1
     assert len(fake_openai.response_calls) == 2
@@ -328,7 +334,7 @@ def test_access_rate_limit_blocks_unlock_attempts() -> None:
 
     assert first.status_code == 401
     assert second.status_code == 429
-    assert "ghost_access" not in second.cookies
+    assert "access_token" not in second.text
 
 
 def test_awakening_requires_allowed_origin_and_checks_openai() -> None:
@@ -546,6 +552,27 @@ def test_chat_blocks_disallowed_origin_before_openai() -> None:
     assert response.status_code == 403
     assert fake_openai.response_calls == []
     assert fake_openai.embedding_calls == []
+
+
+def test_cors_preflight_allows_bearer_headers_without_credentials() -> None:
+    api = client(auto_access=False)
+
+    response = api.options(
+        "/v1/chat",
+        headers={
+            "Origin": ORIGIN,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Authorization, Content-Type",
+        },
+    )
+
+    allowed_headers = response.headers["access-control-allow-headers"].lower()
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == ORIGIN
+    assert "authorization" in allowed_headers
+    assert "content-type" in allowed_headers
+    assert "access-control-allow-credentials" not in response.headers
 
 
 def test_chat_rejects_invalid_input_before_openai() -> None:

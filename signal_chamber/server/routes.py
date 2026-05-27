@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request, status
-from fastapi.responses import JSONResponse
 from openai import OpenAIError
 
 from core.synapse.awakening import probe_openai_for_awakening
@@ -9,7 +8,7 @@ from core.synapse.ghost import GhostEngine, GhostResponseError
 from core.synapse.retrieval import MemoryRetriever
 from signal_chamber.server.access import create_access_token, invite_code_is_valid
 from signal_chamber.server.dependencies import (
-    access_cookie_session_id,
+    access_request_session_id,
     archive_or_none,
     client_key,
     guards,
@@ -53,7 +52,7 @@ async def health(request: Request) -> HealthResponse:
 
 
 @router.post("/v1/access", response_model=AccessResponse)
-async def access(request: Request, payload: AccessRequest) -> JSONResponse:
+async def access(request: Request, payload: AccessRequest) -> AccessResponse:
     settings = request.app.state.settings
     request_guards = guards(request)
 
@@ -74,17 +73,11 @@ async def access(request: Request, payload: AccessRequest) -> JSONResponse:
             detail="Invalid access code.",
         )
 
-    response = JSONResponse(content=AccessResponse(access_granted=True).model_dump())
-    response.set_cookie(
-        key=settings.access_cookie_name,
-        value=create_access_token(settings),
-        max_age=settings.access_cookie_max_age_seconds,
-        httponly=True,
-        secure=settings.production,
-        samesite="lax",
+    return AccessResponse(
+        access_granted=True,
+        access_token=create_access_token(settings),
+        expires_in=settings.access_token_max_age_seconds,
     )
-
-    return response
 
 
 @router.post("/v1/awakening", response_model=AwakeningResponse)
@@ -159,7 +152,7 @@ async def chat(request: Request, payload: ChatRequest) -> ChatResponse:
     client = openai_client(request)
     request_guards = guards(request)
     client_rate_key = client_key(request)
-    session_id = access_cookie_session_id(request)
+    session_id = access_request_session_id(request)
     session_rate_key = f"access:{session_id}" if session_id else f"client:{client_rate_key}"
 
     try:

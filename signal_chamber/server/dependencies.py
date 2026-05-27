@@ -6,7 +6,7 @@ from fastapi import HTTPException, Request, status
 from openai import OpenAI
 
 from core.synapse.runtime import RuntimeArchive
-from signal_chamber.server.access import access_session_id
+from signal_chamber.server.access import access_session_id, access_token_from_authorization
 from signal_chamber.server.guards import GuardRejected, InMemoryGuards
 
 
@@ -56,9 +56,9 @@ def client_key(request: Request) -> str:
     return "unknown"
 
 
-def access_cookie_session_id(request: Request) -> str | None:
+def access_request_session_id(request: Request) -> str | None:
     settings = request.app.state.settings
-    token = request.cookies.get(settings.access_cookie_name)
+    token = access_token_from_authorization(request.headers.get("authorization"))
     session_id = access_session_id(settings, token)
 
     return session_id or None

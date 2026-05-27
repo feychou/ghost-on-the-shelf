@@ -17,7 +17,7 @@ LOCAL_ORIGINS = (
     "http://127.0.0.1:3000",
     "http://127.0.0.1:5173",
 )
-DEFAULT_ACCESS_COOKIE_MAX_AGE_SECONDS = 60 * 60
+DEFAULT_ACCESS_TOKEN_MAX_AGE_SECONDS = 60 * 60
 
 
 def _csv(value: str | None) -> tuple[str, ...]:
@@ -69,9 +69,8 @@ class Settings:
 
     access_code: str = ""
     access_code_hash: str = ""
-    access_cookie_secret: str = ""
-    access_cookie_name: str = "ghost_access"
-    access_cookie_max_age_seconds: int = DEFAULT_ACCESS_COOKIE_MAX_AGE_SECONDS
+    access_token_secret: str = ""
+    access_token_max_age_seconds: int = DEFAULT_ACCESS_TOKEN_MAX_AGE_SECONDS
 
     protocol: SynapseProtocol = field(default_factory=SynapseProtocol)
 
@@ -102,7 +101,7 @@ class Settings:
 
     @property
     def access_configured(self) -> bool:
-        return bool((self.access_code or self.access_code_hash) and self.access_cookie_secret)
+        return bool((self.access_code or self.access_code_hash) and self.access_token_secret)
 
     @property
     def chat_model(self) -> str:
@@ -159,7 +158,11 @@ class Settings:
         docs_credentials_configured = bool(docs_username and docs_password)
         access_code = os.getenv("GHOST_ACCESS_CODE", "").strip()
         access_code_hash = os.getenv("GHOST_ACCESS_CODE_HASH", "").strip().lower()
-        access_cookie_secret = os.getenv("GHOST_ACCESS_COOKIE_SECRET", "")
+        access_token_secret = os.getenv("GHOST_ACCESS_TOKEN_SECRET", "")
+        access_token_max_age_seconds = _int_env(
+            "GHOST_ACCESS_TOKEN_MAX_AGE_SECONDS",
+            DEFAULT_ACCESS_TOKEN_MAX_AGE_SECONDS,
+        )
 
         return cls(
             environment=environment,
@@ -170,11 +173,8 @@ class Settings:
             docs_credentials_configured=docs_credentials_configured,
             access_code=access_code,
             access_code_hash=access_code_hash,
-            access_cookie_secret=access_cookie_secret,
-            access_cookie_max_age_seconds=_int_env(
-                "GHOST_ACCESS_COOKIE_MAX_AGE_SECONDS",
-                DEFAULT_ACCESS_COOKIE_MAX_AGE_SECONDS,
-            ),
+            access_token_secret=access_token_secret,
+            access_token_max_age_seconds=access_token_max_age_seconds,
             protocol=protocol,
             openai_api_key_configured=bool(os.getenv("OPENAI_API_KEY")),
             chat_enabled=_bool_env("GHOST_CHAT_ENABLED", True),

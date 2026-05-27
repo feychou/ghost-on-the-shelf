@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from signal_chamber.server.access import access_token_is_valid
+from signal_chamber.server.access import access_token_from_authorization, access_token_is_valid
 from signal_chamber.server.settings import Settings
 
 
@@ -15,8 +15,8 @@ def install_middlewares(app: FastAPI, settings: Settings) -> None:
         CORSMiddleware,
         allow_origins=list(settings.allowed_origins),
         allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["*"],
-        allow_credentials=True,
+        allow_headers=["Authorization", "Content-Type"],
+        allow_credentials=False,
     )
 
     @app.middleware("http")
@@ -37,12 +37,12 @@ def install_middlewares(app: FastAPI, settings: Settings) -> None:
                     content={"detail": "Access gate is not configured."},
                 )
 
-            token = request.cookies.get(settings.access_cookie_name)
+            token = access_token_from_authorization(request.headers.get("authorization"))
 
             if not access_token_is_valid(settings, token):
                 return JSONResponse(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    content={"detail": "Access cookie is required."},
+                    content={"detail": "Access token is required."},
                 )
 
         return await call_next(request)
