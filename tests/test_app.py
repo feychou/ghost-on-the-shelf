@@ -304,7 +304,7 @@ def test_access_accepts_valid_code_and_unlocks_chat() -> None:
     assert "ghost_access" in access_response.cookies
     set_cookie = access_response.headers["set-cookie"]
     assert "HttpOnly" in set_cookie
-    assert "Max-Age=2592000" in set_cookie
+    assert "Max-Age=3600" in set_cookie
     assert "SameSite=lax" in set_cookie
     assert "Secure" in set_cookie
     assert chat_response.status_code == 200

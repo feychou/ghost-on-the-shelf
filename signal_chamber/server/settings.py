@@ -17,6 +17,7 @@ LOCAL_ORIGINS = (
     "http://127.0.0.1:3000",
     "http://127.0.0.1:5173",
 )
+DEFAULT_ACCESS_COOKIE_MAX_AGE_SECONDS = 60 * 60
 
 
 def _csv(value: str | None) -> tuple[str, ...]:
@@ -70,7 +71,7 @@ class Settings:
     access_code_hash: str = ""
     access_cookie_secret: str = ""
     access_cookie_name: str = "ghost_access"
-    access_cookie_max_age_seconds: int = 60 * 60 * 24 * 30
+    access_cookie_max_age_seconds: int = DEFAULT_ACCESS_COOKIE_MAX_AGE_SECONDS
 
     protocol: SynapseProtocol = field(default_factory=SynapseProtocol)
 
@@ -170,6 +171,10 @@ class Settings:
             access_code=access_code,
             access_code_hash=access_code_hash,
             access_cookie_secret=access_cookie_secret,
+            access_cookie_max_age_seconds=_int_env(
+                "GHOST_ACCESS_COOKIE_MAX_AGE_SECONDS",
+                DEFAULT_ACCESS_COOKIE_MAX_AGE_SECONDS,
+            ),
             protocol=protocol,
             openai_api_key_configured=bool(os.getenv("OPENAI_API_KEY")),
             chat_enabled=_bool_env("GHOST_CHAT_ENABLED", True),

@@ -77,6 +77,7 @@ OPENAI_API_KEY=your_api_key_here
 GHOST_CHAT_ENABLED=true
 GHOST_MODERATION_ENABLED=true
 GHOST_CHAT_SESSION_RATE_LIMIT_PER_MINUTE=6
+GHOST_ACCESS_COOKIE_MAX_AGE_SECONDS=3600
 GHOST_DOCS_USERNAME=choose-a-docs-username
 GHOST_DOCS_PASSWORD=choose-a-strong-docs-password
 
@@ -168,6 +169,7 @@ docker run --rm -p 8000:8000 \
   -e GHOST_ALLOWED_ORIGINS=http://localhost:5173 \
   -e GHOST_ACCESS_CODE \
   -e GHOST_ACCESS_COOKIE_SECRET \
+  -e GHOST_ACCESS_COOKIE_MAX_AGE_SECONDS=3600 \
   -e GHOST_DOCS_USERNAME \
   -e GHOST_DOCS_PASSWORD \
   ghost-on-the-shelf
@@ -182,6 +184,7 @@ For Cloud Run, build and push this Docker image after regenerating the local she
 - `GHOST_ALLOWED_ORIGINS=https://your-frontend.example`
 - `GHOST_ACCESS_CODE`
 - `GHOST_ACCESS_COOKIE_SECRET`
+- `GHOST_ACCESS_COOKIE_MAX_AGE_SECONDS=3600`
 - `GHOST_DOCS_USERNAME`
 - `GHOST_DOCS_PASSWORD`
 
@@ -310,9 +313,10 @@ Set one invite code and a cookie signing secret:
 ```bash
 GHOST_ACCESS_CODE=your-invite-code
 GHOST_ACCESS_COOKIE_SECRET=your-strong-random-secret
+GHOST_ACCESS_COOKIE_MAX_AGE_SECONDS=3600
 ```
 
-`POST /v1/access` accepts the invite code and sets a signed `ghost_access` cookie with `HttpOnly`, `SameSite=Lax`, and `Secure` in production. The cookie contains an opaque anonymous session id, expires after 30 days, and is used for per-session chat abuse controls plus OpenAI Responses `safety_identifier` on chat answer and summary calls. You can provide `GHOST_ACCESS_CODE_HASH` instead of `GHOST_ACCESS_CODE`; it should be the lowercase SHA-256 hex digest of the invite code. `GHOST_ACCESS_RATE_LIMIT_PER_MINUTE` controls unlock attempts and defaults to `5`.
+`POST /v1/access` accepts the invite code and sets a signed `ghost_access` cookie with `HttpOnly`, `SameSite=Lax`, and `Secure` in production. The cookie contains an opaque anonymous session id, expires after one hour by default, and is used for per-session chat abuse controls plus OpenAI Responses `safety_identifier` on chat answer and summary calls. You can provide `GHOST_ACCESS_CODE_HASH` instead of `GHOST_ACCESS_CODE`; it should be the lowercase SHA-256 hex digest of the invite code. `GHOST_ACCESS_COOKIE_MAX_AGE_SECONDS` controls the cookie lifetime and defaults to `3600`. `GHOST_ACCESS_RATE_LIMIT_PER_MINUTE` controls unlock attempts and defaults to `5`.
 
 `GHOST_CHAT_SESSION_RATE_LIMIT_PER_MINUTE` controls the per-access-session chat limit. It defaults to `6` and is enforced in addition to the existing client/IP chat limit.
 
