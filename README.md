@@ -56,6 +56,24 @@ ghost-on-the-shelf/
 
 `staging_chamber/` is for rehearsal. `signal_chamber/` is the live contact surface. Shared memory mechanics and response-shaping protocol belong in `core/synapse/` so the journal and server use the same retrieval and ghost reply behavior.
 
+## Customization
+
+This project ships with one ghost archive, but the archive is meant to be replaceable. Customize the ghost by editing the human-written files under `core/archive/`:
+
+- `core/archive/canon/identity.md` defines who the ghost is.
+- `core/archive/canon/ontology.md` defines its core concepts and vocabulary.
+- `core/archive/canon/voice.md` defines its response style.
+- `core/archive/memories/**/*.md` defines retrievable memory fragments.
+
+The canon file paths are fixed by the runtime summarization ritual. Memory files can be changed, added, or removed under `core/archive/memories/`.
+
+After changing canon or memory files, regenerate the ignored `core/shelf/` artifacts before running or deploying the server:
+
+```bash
+uv run --env-file .env python rituals/summarize_runtime.py
+uv run --env-file .env python rituals/build_index.py
+```
+
 ## Installation
 
 Requirements:
@@ -276,12 +294,6 @@ Response:
 ```
 
 `k` is optional and defaults to `3`. When moderation is enabled, the server first checks the user message with OpenAI moderation. Flagged messages return a normal chat response with a calm blocked reply, the existing `session_summary`, and an empty `retrieved` list before embedding, retrieval, answer, or summary calls. Allowed messages are embedded, cosine-ranked against the generated memory index, injected with the top fragments, sent to the OpenAI Responses API with `store=false`, then followed by one small summary update call after a successful reply.
-
-## OpenAI Availability
-
-OpenAI does not expose a simple "tokens left" endpoint for normal chat readiness. Usage and costs endpoints report historical usage and spend, not a clean remaining-token balance.
-
-For this app, `/v1/awakening` answers the more useful runtime question: can this server talk to OpenAI right now? If the key is missing, billing/quota is exhausted, credentials are invalid, rate limits are hit, or OpenAI cannot be reached, the endpoint returns `can_awaken: false` and the client should keep chat disabled.
 
 ## Abuse Limits
 
