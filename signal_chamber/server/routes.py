@@ -5,7 +5,7 @@ from openai import OpenAIError
 
 from core.synapse.awakening import probe_openai_for_awakening
 from core.synapse.ghost import GhostEngine, GhostResponseError
-from core.synapse.retrieval import MemoryRetriever
+from core.synapse.retrieval import MemoryRetriever, build_contextual_retrieval_query
 from signal_chamber.server.access import create_access_token, invite_code_is_valid
 from signal_chamber.server.dependencies import (
     access_request_session_id,
@@ -169,8 +169,7 @@ async def chat(request: Request, payload: ChatRequest) -> ChatResponse:
             )
 
         retriever = MemoryRetriever(client, archive.memory_index)
-        retrieval_query = _build_retrieval_query(message, session_summary)
-        fragments = retriever.retrieve(retrieval_query, k=k)
+        fragments = retriever.retrieve_with_context(message, session_summary, k=k)
         ghost = GhostEngine(settings.protocol, archive, client)
         ghost_reply = ghost.answer(
             message,
@@ -233,14 +232,7 @@ def _validate_chat_payload(settings: Settings, message: str, session_summary: st
 
 
 def _build_retrieval_query(message: str, session_summary: str) -> str:
-    if not session_summary:
-        return message
-
-    return f"""SESSION SUMMARY:
-{session_summary}
-
-CURRENT USER MESSAGE:
-{message}"""
+    return build_contextual_retrieval_query(message, session_summary)
 
 
 def _awakening_response(

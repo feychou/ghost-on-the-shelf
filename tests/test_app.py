@@ -436,7 +436,8 @@ def test_chat_returns_reply_updated_summary_and_retrieved_fragments() -> None:
     assert fake_openai.moderation_calls == [
         {"model": "omni-moderation-latest", "input": "Tell me about Alpha"}
     ]
-    assert fake_openai.embedding_calls[0]["input"] == (
+    assert fake_openai.embedding_calls[0]["input"] == "Tell me about Alpha"
+    assert fake_openai.embedding_calls[1]["input"] == (
         "SESSION SUMMARY:\n"
         "old summary\n\n"
         "CURRENT USER MESSAGE:\n"
@@ -452,7 +453,7 @@ def test_chat_returns_reply_updated_summary_and_retrieved_fragments() -> None:
     assert isinstance(safety_identifier, str)
     assert len(safety_identifier) >= 16
     assert fake_openai.response_calls[1]["safety_identifier"] == safety_identifier
-    assert "safety_identifier" not in fake_openai.embedding_calls[0]
+    assert all("safety_identifier" not in call for call in fake_openai.embedding_calls)
 
 
 def test_chat_blocks_flagged_input_before_retrieval_answer_or_summary() -> None:
@@ -511,10 +512,11 @@ def test_chat_uses_summary_for_vague_follow_up_retrieval() -> None:
     )
 
     assert response.status_code == 200
-    embedding_input = fake_openai.embedding_calls[0]["input"]
-    assert "memory retrieval drift" in embedding_input
-    assert "brief follow-ups" in embedding_input
-    assert "Say that more plainly." in embedding_input
+    embedding_inputs = [call["input"] for call in fake_openai.embedding_calls]
+    assert embedding_inputs[0] == "Say that more plainly."
+    assert "memory retrieval drift" in embedding_inputs[1]
+    assert "brief follow-ups" in embedding_inputs[1]
+    assert "Say that more plainly." in embedding_inputs[1]
 
 
 def test_chat_does_not_store_session_summary_server_side() -> None:
